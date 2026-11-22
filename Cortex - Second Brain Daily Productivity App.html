@@ -1,0 +1,1603 @@
+<!DOCTYPE html>
+<html lang="en" class="dark h-full bg-[#050608]">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cortex — Atmospheric Second Brain OS</title>
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Google Fonts: Inter & JetBrains Mono -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
+
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    },
+                    colors: {
+                        obsidian: '#050608',
+                        'bento-card': '#0B0D11',
+                        'bento-hover': '#12151C',
+                        'surface-dim': '#141720',
+                        'border-subtle': 'rgba(255, 255, 255, 0.07)',
+                        'border-rim': 'rgba(255, 255, 255, 0.16)'
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        /* Base Canvas & Anti-aliasing */
+        body {
+            background-color: #050608;
+            color: #E2E8F0;
+            font-family: 'Inter', sans-serif;
+            -webkit-font-smoothing: antialiased;
+            overflow-x: hidden;
+        }
+
+        .font-mono-num {
+            font-family: 'JetBrains Mono', monospace;
+            font-variant-numeric: tabular-nums;
+        }
+
+        /* Ambient Lighting Pools */
+        .ambient-glow-top-left {
+            position: absolute;
+            top: -140px;
+            left: 15%;
+            width: 800px;
+            height: 450px;
+            background: radial-gradient(circle, rgba(255, 255, 255, 0.05) 0%, rgba(99, 102, 241, 0.025) 40%, transparent 70%);
+            filter: blur(70px);
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .ambient-glow-bottom-right {
+            position: absolute;
+            bottom: -100px;
+            right: 5%;
+            width: 650px;
+            height: 500px;
+            background: radial-gradient(circle, rgba(16, 185, 129, 0.03) 0%, rgba(245, 158, 11, 0.015) 50%, transparent 70%);
+            filter: blur(80px);
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        /* Rim-Lit Bento Cards (Smoked Glassmorphism) */
+        .bento-card {
+            background: rgba(11, 13, 17, 0.88);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.07);
+            box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.14), 0 20px 40px -15px rgba(0, 0, 0, 0.75);
+            border-radius: 1rem;
+            transition: border-color 0.25s ease, box-shadow 0.25s ease, opacity 0.3s ease, transform 0.2s ease;
+        }
+
+        .bento-card:hover {
+            border-color: rgba(255, 255, 255, 0.16);
+            box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.24), 0 25px 50px -12px rgba(0, 0, 0, 0.85);
+        }
+
+        /* Custom Animated Rim Checkbox */
+        .rim-checkbox {
+            appearance: none;
+            width: 19px;
+            height: 19px;
+            border: 1.5px solid rgba(255, 255, 255, 0.22);
+            border-radius: 6px;
+            background: rgba(255, 255, 255, 0.03);
+            cursor: pointer;
+            transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+            position: relative;
+            flex-shrink: 0;
+            box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.1);
+        }
+
+        .rim-checkbox:hover {
+            border-color: rgba(255, 255, 255, 0.5);
+            background: rgba(255, 255, 255, 0.08);
+        }
+
+        .rim-checkbox:checked {
+            background: #FFFFFF;
+            border-color: #FFFFFF;
+            box-shadow: 0 0 12px rgba(255, 255, 255, 0.4);
+        }
+
+        .rim-checkbox:checked::after {
+            content: '';
+            position: absolute;
+            left: 5.5px;
+            top: 2px;
+            width: 5px;
+            height: 9.5px;
+            border: solid #050608;
+            border-width: 0 2.2px 2.2px 0;
+            transform: rotate(45deg);
+        }
+
+        /* Item Row Animations & Completed State */
+        .item-row {
+            transition: background-color 0.15s ease, opacity 0.2s ease;
+        }
+        .item-completed {
+            opacity: 0.45;
+        }
+        .item-completed .item-title {
+            text-decoration: line-through;
+            color: #64748B;
+        }
+
+        /* Context Badges */
+        .ctx-pill {
+            font-size: 10px;
+            font-family: 'JetBrains Mono', monospace;
+            padding: 2px 8px;
+            border-radius: 9999px;
+            letter-spacing: 0.03em;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .ctx-personal {
+            background: rgba(16, 185, 129, 0.08);
+            color: #34D399;
+            border: 1px solid rgba(16, 185, 129, 0.22);
+        }
+        .ctx-school {
+            background: rgba(56, 189, 248, 0.08);
+            color: #38BDF8;
+            border: 1px solid rgba(56, 189, 248, 0.22);
+        }
+        .ctx-work {
+            background: rgba(245, 158, 11, 0.08);
+            color: #FBBF24;
+            border: 1px solid rgba(245, 158, 11, 0.22);
+        }
+
+        /* Due Tag Pills */
+        .due-pill {
+            font-size: 10px;
+            font-family: 'JetBrains Mono', monospace;
+            padding: 2px 7px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            user-select: none;
+        }
+        .due-none {
+            background: rgba(255, 255, 255, 0.04);
+            color: #64748B;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+        .due-none:hover {
+            border-color: rgba(255, 255, 255, 0.2);
+            color: #94A3B8;
+        }
+        .due-active {
+            background: rgba(255, 255, 255, 0.12);
+            color: #FFFFFF;
+            border: 1px solid rgba(255, 255, 255, 0.25);
+            box-shadow: 0 0 8px rgba(255, 255, 255, 0.15);
+        }
+
+        /* SVG Circular Progress Gauge */
+        .progress-ring__circle {
+            transition: stroke-dashoffset 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+            transform: rotate(-90deg);
+            transform-origin: 50% 50%;
+        }
+
+        /* Focus Mode Dimming Effect */
+        body.in-focus-mode .bento-workspace {
+            opacity: 0.18;
+            pointer-events: none;
+            filter: blur(2px);
+        }
+
+        body.in-focus-mode .focus-spotlight-card {
+            opacity: 1 !important;
+            pointer-events: auto !important;
+            filter: none !important;
+            transform: scale(1.02);
+            border-color: rgba(255, 255, 255, 0.35);
+            box-shadow: 0 0 50px rgba(255, 255, 255, 0.15), inset 0 1px 0 0 rgba(255, 255, 255, 0.4);
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 5px;
+            height: 5px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #050608;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #1E232D;
+            border-radius: 9999px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #333C4D;
+        }
+
+        .obsidian-backdrop {
+            background: rgba(5, 6, 8, 0.88);
+            backdrop-filter: blur(14px);
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col justify-between selection:bg-white/20 selection:text-white relative">
+
+    <!-- Ambient Light Background Gradients -->
+    <div class="ambient-glow-top-left"></div>
+    <div class="ambient-glow-bottom-right"></div>
+
+    <div class="max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6 flex-grow relative z-10">
+
+        <!-- ========================================== -->
+        <!-- TOP TELEMETRY & CONTROL HEADER             -->
+        <!-- ========================================== -->
+        <header class="grid grid-cols-1 md:grid-cols-12 gap-4 items-center border-b border-white/10 pb-6">
+            
+            <!-- Left Branding & Live Date -->
+            <div class="md:col-span-6 space-y-2">
+                <div class="inline-flex items-center space-x-2 bg-white/5 border border-white/10 px-2.5 py-1 rounded-full text-[11px] font-mono tracking-wider text-slate-300">
+                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                    <span>SECOND BRAIN // OS v3.0</span>
+                </div>
+                <div class="flex items-baseline space-x-3">
+                    <h1 class="text-2xl sm:text-3xl font-bold tracking-tight text-white">CORTEX</h1>
+                    <span class="text-xs font-mono-num text-slate-400" id="current-date-display">--</span>
+                </div>
+                <p class="text-xs text-slate-400 max-w-lg">
+                    Tactile obsidian productivity hub. Fluid zero-friction capture, focus spotlight, and telemetry.
+                </p>
+            </div>
+
+            <!-- Right Telemetry & Header Controls -->
+            <div class="md:col-span-6 flex flex-col sm:flex-row items-stretch sm:items-center justify-end gap-3">
+                
+                <!-- Telemetry Summary Card -->
+                <div class="bento-card p-3 flex items-center justify-between space-x-4 flex-grow max-w-md">
+                    <!-- Progress Circle -->
+                    <div class="flex items-center space-x-3">
+                        <div class="relative w-12 h-12 flex items-center justify-center">
+                            <svg class="w-12 h-12">
+                                <circle class="text-white/10" stroke-width="3.5" stroke="currentColor" fill="transparent" r="20" cx="24" cy="24"/>
+                                <circle id="telemetry-ring" class="progress-ring__circle text-white" stroke-width="3.5" stroke-dasharray="125.6" stroke-dashoffset="125.6" stroke-linecap="round" stroke="currentColor" fill="transparent" r="20" cx="24" cy="24"/>
+                            </svg>
+                            <span id="telemetry-pct" class="absolute font-mono-num text-[11px] font-bold text-white">0%</span>
+                        </div>
+                        <div>
+                            <div class="text-xs font-semibold text-white">Completion Rate</div>
+                            <div class="text-[10px] text-slate-400 font-mono-num" id="telemetry-ratio">0/0 Done</div>
+                        </div>
+                    </div>
+
+                    <div class="h-8 w-px bg-white/10"></div>
+
+                    <!-- Telemetry Stats -->
+                    <div class="flex space-x-3 pr-1 text-right">
+                        <div>
+                            <div class="text-[9px] uppercase font-mono text-slate-400">Streak</div>
+                            <div class="font-mono-num text-xs font-semibold text-amber-400" id="telemetry-streak-count">0d</div>
+                        </div>
+                        <div>
+                            <div class="text-[9px] uppercase font-mono text-slate-400">Ideas</div>
+                            <div class="font-mono-num text-xs font-semibold text-sky-400" id="telemetry-ideas-count">0</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Header Actions Pill Buttons -->
+                <div class="flex items-center justify-end space-x-2">
+                    <!-- Focus Mode Toggle -->
+                    <button 
+                        onclick="toggleFocusMode()" 
+                        id="focus-toggle-btn"
+                        class="text-xs font-medium px-3.5 py-2 rounded-full border border-white/10 bg-white/5 hover:bg-white/15 text-slate-200 transition-all flex items-center space-x-1.5 shadow-sm"
+                        title="Toggle Focus Mode Spotlight"
+                    >
+                        <i data-lucide="target" class="w-3.5 h-3.5 text-amber-400"></i>
+                        <span id="focus-btn-text">Focus Mode</span>
+                    </button>
+
+                    <!-- Reset / Clear All Header Button -->
+                    <div class="relative">
+                        <button 
+                            onclick="promptResetData()" 
+                            id="reset-btn"
+                            class="text-xs px-3 py-2 rounded-full border border-white/10 bg-white/5 hover:bg-rose-500/15 hover:text-rose-300 text-slate-400 transition-all flex items-center space-x-1"
+                            title="Reset Application Data"
+                        >
+                            <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i>
+                        </button>
+                    </div>
+                </div>
+
+            </div>
+
+        </header>
+
+
+        <!-- ========================================== -->
+        <!-- FOCUS SPOTLIGHT CARD (ACTIVE IN FOCUS MODE)-->
+        <!-- ========================================== -->
+        <section id="focus-spotlight-container" class="hidden transition-all duration-300">
+            <div class="bento-card focus-spotlight-card p-5 border-2 border-white/30 bg-bento-card shadow-2xl relative overflow-hidden">
+                <div class="flex items-center justify-between border-b border-white/10 pb-3 mb-4">
+                    <div class="flex items-center space-x-2">
+                        <span class="w-2.5 h-2.5 rounded-full bg-amber-400 animate-ping"></span>
+                        <h2 class="text-sm font-semibold text-white uppercase tracking-wider font-mono">SPOTLIGHT FOCUS TARGET</h2>
+                    </div>
+                    <button onclick="toggleFocusMode()" class="text-xs text-slate-400 hover:text-white bg-white/5 px-3 py-1 rounded-full border border-white/10 transition-all">
+                        Exit Focus Mode (Esc)
+                    </button>
+                </div>
+
+                <div id="focus-target-content" class="space-y-4">
+                    <!-- Dynamic Focus Target Renderer -->
+                </div>
+            </div>
+        </section>
+
+
+        <!-- ========================================== -->
+        <!-- COMMAND CAPTURE BAR                       -->
+        <!-- ========================================== -->
+        <section class="space-y-3">
+            <div class="bento-card p-3 sm:p-4">
+                <form id="capture-form" onsubmit="handleQuickCapture(event)" class="space-y-3">
+                    <!-- Input row -->
+                    <div class="flex items-center space-x-3">
+                        <div class="text-white/50 pl-1">
+                            <i data-lucide="sparkles" class="w-5 h-5 text-white"></i>
+                        </div>
+                        <input 
+                            type="text" 
+                            id="capture-input" 
+                            placeholder="Capture task, homework, chore, or idea... (Press '/' to focus)" 
+                            autocomplete="off"
+                            class="w-full bg-transparent text-sm sm:text-base text-white placeholder-slate-500 focus:outline-none font-sans"
+                            required
+                        />
+                        <div class="hidden sm:flex items-center space-x-1 text-[10px] font-mono text-slate-400 bg-white/5 border border-white/10 px-2 py-1 rounded-md">
+                            <span>Press</span> <kbd class="text-white font-semibold">/</kbd>
+                        </div>
+                    </div>
+
+                    <!-- Config Controls Bar -->
+                    <div class="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-white/5 text-xs">
+                        <div class="flex flex-wrap items-center gap-3">
+                            <!-- Bucket selector -->
+                            <div class="flex items-center space-x-1">
+                                <span class="text-slate-400 font-mono text-[10px] uppercase tracking-wider pr-1">Bucket:</span>
+                                <div class="flex items-center bg-obsidian p-0.5 rounded-lg border border-white/10">
+                                    <label class="cursor-pointer">
+                                        <input type="radio" name="capture-bucket" value="task" class="sr-only peer" checked>
+                                        <span class="px-2.5 py-1 rounded-md text-[11px] text-slate-400 peer-checked:bg-white/15 peer-checked:text-white font-medium transition-all block">Task</span>
+                                    </label>
+                                    <label class="cursor-pointer">
+                                        <input type="radio" name="capture-bucket" value="homework" class="sr-only peer">
+                                        <span class="px-2.5 py-1 rounded-md text-[11px] text-slate-400 peer-checked:bg-white/15 peer-checked:text-white font-medium transition-all block">Homework</span>
+                                    </label>
+                                    <label class="cursor-pointer">
+                                        <input type="radio" name="capture-bucket" value="chore" class="sr-only peer">
+                                        <span class="px-2.5 py-1 rounded-md text-[11px] text-slate-400 peer-checked:bg-white/15 peer-checked:text-white font-medium transition-all block">Chore</span>
+                                    </label>
+                                    <label class="cursor-pointer">
+                                        <input type="radio" name="capture-bucket" value="idea" class="sr-only peer">
+                                        <span class="px-2.5 py-1 rounded-md text-[11px] text-slate-400 peer-checked:bg-white/15 peer-checked:text-white font-medium transition-all block">Idea</span>
+                                    </label>
+                                </div>
+                            </div>
+
+                            <!-- Context Selector -->
+                            <div class="flex items-center space-x-1">
+                                <span class="text-slate-400 font-mono text-[10px] uppercase tracking-wider pr-1">Context:</span>
+                                <select id="capture-context" class="bg-obsidian text-slate-200 text-xs rounded-lg border border-white/10 px-2.5 py-1 focus:outline-none focus:border-white/30 cursor-pointer">
+                                    <option value="personal">Personal</option>
+                                    <option value="school">School</option>
+                                    <option value="work">Work</option>
+                                </select>
+                            </div>
+
+                            <!-- Due Tag Selector -->
+                            <div class="flex items-center space-x-1">
+                                <span class="text-slate-400 font-mono text-[10px] uppercase tracking-wider pr-1">Due:</span>
+                                <select id="capture-due" class="bg-obsidian text-slate-200 text-xs rounded-lg border border-white/10 px-2.5 py-1 focus:outline-none focus:border-white/30 cursor-pointer font-mono">
+                                    <option value="None">None</option>
+                                    <option value="Today">Today</option>
+                                    <option value="Tonight">Tonight</option>
+                                    <option value="Fri">Fri</option>
+                                    <option value="Next Week">Next Week</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- Stark-White CTA Pill -->
+                        <button type="submit" class="bg-white hover:bg-slate-200 text-obsidian font-semibold px-5 py-1.5 rounded-full text-xs transition-all flex items-center space-x-1.5 shadow-lg shadow-white/5 active:scale-95">
+                            <span>Capture</span>
+                            <i data-lucide="arrow-up-right" class="w-3.5 h-3.5"></i>
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Global Context Filter Strip -->
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-1 bg-obsidian p-1 rounded-full border border-white/10">
+                    <button onclick="setContextFilter('all')" id="filter-all" class="filter-btn text-xs px-3.5 py-1.5 rounded-full font-medium transition-all duration-150 flex items-center space-x-1.5 bg-white text-obsidian shadow-sm">
+                        <i data-lucide="layers" class="w-3.5 h-3.5"></i>
+                        <span>All Contexts</span>
+                    </button>
+                    <button onclick="setContextFilter('personal')" id="filter-personal" class="filter-btn text-xs px-3.5 py-1.5 rounded-full font-medium text-slate-400 hover:text-white transition-all duration-150 flex items-center space-x-1.5">
+                        <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                        <span>Personal</span>
+                    </button>
+                    <button onclick="setContextFilter('school')" id="filter-school" class="filter-btn text-xs px-3.5 py-1.5 rounded-full font-medium text-slate-400 hover:text-white transition-all duration-150 flex items-center space-x-1.5">
+                        <span class="w-1.5 h-1.5 rounded-full bg-sky-400"></span>
+                        <span>School</span>
+                    </button>
+                    <button onclick="setContextFilter('work')" id="filter-work" class="filter-btn text-xs px-3.5 py-1.5 rounded-full font-medium text-slate-400 hover:text-white transition-all duration-150 flex items-center space-x-1.5">
+                        <span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
+                        <span>Work</span>
+                    </button>
+                </div>
+
+                <button onclick="clearCompletedItems()" class="text-xs text-slate-400 hover:text-rose-400 bg-white/5 hover:bg-rose-500/10 border border-white/10 px-3 py-1.5 rounded-full transition-all flex items-center space-x-1.5">
+                    <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                    <span class="hidden sm:inline">Clear Completed</span>
+                </button>
+            </div>
+        </section>
+
+
+        <!-- ========================================== -->
+        <!-- ASYMMETRIC BENTO WORKSPACE                 -->
+        <!-- ========================================== -->
+        <main class="bento-workspace grid grid-cols-1 lg:grid-cols-12 gap-6 transition-all duration-300">
+
+            <!-- LEFT COLUMN (7/12 cols): THE DAILY THREE -->
+            <section class="lg:col-span-7 xl:col-span-7 space-y-6">
+
+                <!-- 1. TASKS BENTO BUCKET -->
+                <div class="bento-card overflow-hidden">
+                    <div class="px-4 py-3.5 bg-white/[0.02] border-b border-white/10 flex items-center justify-between">
+                        <div class="flex items-center space-x-2.5">
+                            <div class="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.5)]"></div>
+                            <h3 class="text-sm font-semibold text-white tracking-wide">Tasks</h3>
+                            <span id="tasks-count-badge" class="font-mono-num text-[11px] bg-white/10 text-slate-300 px-2 py-0.5 rounded-full border border-white/10">0</span>
+                        </div>
+                        <span class="text-[11px] text-slate-400 font-mono">Action & Execution</span>
+                    </div>
+                    <div id="tasks-list" class="divide-y divide-white/5">
+                        <!-- Dynamic Render -->
+                    </div>
+                </div>
+
+                <!-- 2. HOMEWORKS BENTO BUCKET -->
+                <div class="bento-card overflow-hidden">
+                    <div class="px-4 py-3.5 bg-white/[0.02] border-b border-white/10 flex items-center justify-between">
+                        <div class="flex items-center space-x-2.5">
+                            <div class="w-2 h-2 rounded-full bg-sky-400 shadow-[0_0_8px_rgba(56,189,248,0.5)]"></div>
+                            <h3 class="text-sm font-semibold text-white tracking-wide">Homeworks & Learning</h3>
+                            <span id="homeworks-count-badge" class="font-mono-num text-[11px] bg-white/10 text-slate-300 px-2 py-0.5 rounded-full border border-white/10">0</span>
+                        </div>
+                        <span class="text-[11px] text-slate-400 font-mono">Academics & Skills</span>
+                    </div>
+                    <div id="homeworks-list" class="divide-y divide-white/5">
+                        <!-- Dynamic Render -->
+                    </div>
+                </div>
+
+                <!-- 3. CHORES BENTO BUCKET -->
+                <div class="bento-card overflow-hidden">
+                    <div class="px-4 py-3.5 bg-white/[0.02] border-b border-white/10 flex items-center justify-between">
+                        <div class="flex items-center space-x-2.5">
+                            <div class="w-2 h-2 rounded-full bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.5)]"></div>
+                            <h3 class="text-sm font-semibold text-white tracking-wide">Chores & Maintenance</h3>
+                            <span id="chores-count-badge" class="font-mono-num text-[11px] bg-white/10 text-slate-300 px-2 py-0.5 rounded-full border border-white/10">0</span>
+                        </div>
+                        <span class="text-[11px] text-slate-400 font-mono">Life Admin & Housekeeping</span>
+                    </div>
+                    <div id="chores-list" class="divide-y divide-white/5">
+                        <!-- Dynamic Render -->
+                    </div>
+                </div>
+
+            </section>
+
+
+            <!-- RIGHT COLUMN (5/12 cols): MOMENTUM, PULSE & SCRATCHPAD -->
+            <section class="lg:col-span-5 xl:col-span-5 space-y-6">
+
+                <!-- A) DAILY PULSE & INCOME LOG BENTO -->
+                <div class="bento-card p-4 space-y-4">
+                    <div class="flex items-center justify-between border-b border-white/10 pb-2.5">
+                        <div class="flex items-center space-x-2">
+                            <i data-lucide="wallet" class="w-4 h-4 text-emerald-400"></i>
+                            <h3 class="text-sm font-semibold text-white">Daily Pulse & Income Log</h3>
+                        </div>
+                        <button onclick="toggleCurrency()" class="text-[10px] font-mono bg-white/5 hover:bg-white/10 text-slate-300 border border-white/10 px-2 py-0.5 rounded-md transition-all">
+                            Toggle: <span id="currency-label" class="font-bold text-white">Rp</span>
+                        </button>
+                    </div>
+
+                    <!-- Income Display Banner -->
+                    <div class="bg-obsidian/80 border border-white/10 rounded-xl p-3.5 flex items-center justify-between">
+                        <div>
+                            <div class="text-[10px] font-mono text-slate-400 uppercase tracking-wider">Today's Earnings</div>
+                            <div class="text-lg font-bold font-mono-num text-emerald-400" id="income-total-display">Rp 0</div>
+                        </div>
+                        <button onclick="undoLastIncome()" id="income-undo-btn" class="text-[10px] font-mono text-slate-400 hover:text-rose-300 bg-white/5 hover:bg-white/10 px-2.5 py-1 rounded-md border border-white/10 transition-all hidden">
+                            Undo Last
+                        </button>
+                    </div>
+
+                    <!-- Income Log Input -->
+                    <form onsubmit="handleLogIncome(event)" class="flex items-center space-x-2">
+                        <div class="relative flex-grow">
+                            <span class="absolute left-2.5 top-2 text-xs font-mono text-slate-400" id="currency-prefix">Rp</span>
+                            <input 
+                                type="number" 
+                                id="income-amount-input" 
+                                placeholder="e.g. 150000" 
+                                required
+                                min="1"
+                                class="w-full bg-obsidian border border-white/10 rounded-lg pl-8 pr-3 py-1.5 text-xs font-mono-num text-white placeholder-slate-500 focus:outline-none focus:border-white/30"
+                            />
+                        </div>
+                        <button type="submit" class="bg-white/10 hover:bg-white/20 text-white font-medium px-3 py-1.5 rounded-lg text-xs border border-white/15 transition-all flex-shrink-0">
+                            + Log
+                        </button>
+                    </form>
+
+                    <!-- One-Line Reflection Pulse -->
+                    <div class="space-y-1.5 pt-1 border-t border-white/5">
+                        <div class="flex items-center justify-between">
+                            <label class="text-[10px] font-mono text-slate-400 uppercase tracking-wider">Daily Reflection / Pulse</label>
+                            <span class="text-[9px] font-mono text-slate-500">Auto-saved</span>
+                        </div>
+                        <input 
+                            type="text" 
+                            id="daily-pulse-input" 
+                            placeholder="One line highlight, reflection, or win..."
+                            oninput="savePulseNote(this.value)"
+                            class="w-full bg-obsidian/60 border border-white/10 rounded-lg px-3 py-2 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-white/30"
+                        />
+                    </div>
+                </div>
+
+
+                <!-- B) DAILY HABITS & ROUTINE BENTO -->
+                <div class="bento-card p-4 space-y-3.5">
+                    <div class="flex items-center justify-between border-b border-white/10 pb-2.5">
+                        <div class="flex items-center space-x-2">
+                            <i data-lucide="zap" class="w-4 h-4 text-amber-400"></i>
+                            <h3 class="text-sm font-semibold text-white">Habits & Routine</h3>
+                        </div>
+                        <button onclick="openAddHabitModal()" class="text-xs bg-white/5 hover:bg-white/10 text-white border border-white/10 px-2.5 py-1 rounded-full font-medium transition-all flex items-center space-x-1">
+                            <i data-lucide="plus" class="w-3 h-3"></i>
+                            <span>Habit</span>
+                        </button>
+                    </div>
+
+                    <div id="habits-list" class="space-y-3">
+                        <!-- Dynamic Habits Render -->
+                    </div>
+                </div>
+
+
+                <!-- C) GOAL MILESTONES BENTO -->
+                <div class="bento-card p-4 space-y-3.5">
+                    <div class="flex items-center justify-between border-b border-white/10 pb-2.5">
+                        <div class="flex items-center space-x-2">
+                            <i data-lucide="crosshair" class="w-4 h-4 text-sky-400"></i>
+                            <h3 class="text-sm font-semibold text-white">Active Goals</h3>
+                        </div>
+                        <button onclick="openAddGoalModal()" class="text-xs bg-white/5 hover:bg-white/10 text-white border border-white/10 px-2.5 py-1 rounded-full font-medium transition-all flex items-center space-x-1">
+                            <i data-lucide="plus" class="w-3 h-3"></i>
+                            <span>Goal</span>
+                        </button>
+                    </div>
+
+                    <div id="goals-list" class="space-y-4">
+                        <!-- Dynamic Goals Render -->
+                    </div>
+                </div>
+
+
+                <!-- D) IDEA SCRATCHPAD BENTO -->
+                <div class="bento-card p-4 space-y-3.5">
+                    <div class="flex items-center justify-between border-b border-white/10 pb-2.5">
+                        <div class="flex items-center space-x-2">
+                            <i data-lucide="lightbulb" class="w-4 h-4 text-emerald-400"></i>
+                            <h3 class="text-sm font-semibold text-white">Idea Scratchpad</h3>
+                        </div>
+                        <span class="text-[10px] text-slate-400 font-mono">Click text to edit</span>
+                    </div>
+
+                    <div id="ideas-list" class="space-y-2.5">
+                        <!-- Dynamic Ideas Render -->
+                    </div>
+                </div>
+
+            </section>
+
+        </main>
+
+    </div>
+
+
+    <!-- ========================================== -->
+    <!-- FOOTER                                     -->
+    <!-- ========================================== -->
+    <footer class="mt-12 border-t border-white/10 py-6 bg-obsidian text-xs text-slate-400 relative z-10">
+        <div class="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-3">
+            <div class="flex items-center space-x-2">
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                <span class="font-mono">Atmospheric Obsidian OS • Local Persistence Active</span>
+            </div>
+            <div class="flex items-center space-x-4 font-mono text-[11px]">
+                <span>Cortex Second Brain</span>
+                <span>•</span>
+                <span>Step 3 Build</span>
+            </div>
+        </div>
+    </footer>
+
+
+    <!-- ========================================== -->
+    <!-- MODALS & POPUPS                            -->
+    <!-- ========================================== -->
+
+    <!-- Add Habit Modal -->
+    <div id="habit-modal" class="fixed inset-0 obsidian-backdrop hidden items-center justify-center p-4 z-50">
+        <div class="bento-card max-w-md w-full p-6 space-y-4 shadow-2xl">
+            <div class="flex items-center justify-between border-b border-white/10 pb-3">
+                <h3 class="text-base font-semibold text-white flex items-center space-x-2">
+                    <i data-lucide="zap" class="w-4 h-4 text-amber-400"></i>
+                    <span>Track Daily Habit</span>
+                </h3>
+                <button onclick="closeAddHabitModal()" class="text-slate-400 hover:text-white">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
+            </div>
+            <form onsubmit="handleAddHabitSubmit(event)" class="space-y-4">
+                <div>
+                    <label class="block text-xs font-mono text-slate-400 uppercase mb-1">Habit Title</label>
+                    <input type="text" id="habit-title-input" required placeholder="e.g. Read 20 pages of book" class="w-full bg-obsidian border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-white/30">
+                </div>
+                <div>
+                    <label class="block text-xs font-mono text-slate-400 uppercase mb-1">Context</label>
+                    <select id="habit-context-input" class="w-full bg-obsidian border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none">
+                        <option value="personal">Personal</option>
+                        <option value="school">School</option>
+                        <option value="work">Work</option>
+                    </select>
+                </div>
+                <div class="flex justify-end space-x-2 pt-2">
+                    <button type="button" onclick="closeAddHabitModal()" class="px-3 py-1.5 text-xs text-slate-400 hover:text-white">Cancel</button>
+                    <button type="submit" class="px-5 py-1.5 text-xs bg-white text-obsidian font-semibold rounded-full hover:bg-slate-200">Save Habit</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Add Goal Modal -->
+    <div id="goal-modal" class="fixed inset-0 obsidian-backdrop hidden items-center justify-center p-4 z-50">
+        <div class="bento-card max-w-md w-full p-6 space-y-4 shadow-2xl">
+            <div class="flex items-center justify-between border-b border-white/10 pb-3">
+                <h3 class="text-base font-semibold text-white flex items-center space-x-2">
+                    <i data-lucide="crosshair" class="w-4 h-4 text-sky-400"></i>
+                    <span>Create Milestone Goal</span>
+                </h3>
+                <button onclick="closeAddGoalModal()" class="text-slate-400 hover:text-white">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
+            </div>
+            <form onsubmit="handleAddGoalSubmit(event)" class="space-y-4">
+                <div>
+                    <label class="block text-xs font-mono text-slate-400 uppercase mb-1">Goal Title</label>
+                    <input type="text" id="goal-title-input" required placeholder="e.g. Launch Web Application" class="w-full bg-obsidian border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-white/30">
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-mono text-slate-400 uppercase mb-1">Context</label>
+                        <select id="goal-context-input" class="w-full bg-obsidian border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none">
+                            <option value="personal">Personal</option>
+                            <option value="school">School</option>
+                            <option value="work">Work</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-mono text-slate-400 uppercase mb-1">Target Date</label>
+                        <input type="date" id="goal-target-input" class="w-full bg-obsidian border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none font-mono">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-mono text-slate-400 uppercase mb-1">Sub-Milestones (comma separated)</label>
+                    <textarea id="goal-steps-input" rows="3" placeholder="Design UI wireframe, Implement state, Deploy demo" class="w-full bg-obsidian border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-white/30"></textarea>
+                </div>
+                <div class="flex justify-end space-x-2 pt-2">
+                    <button type="button" onclick="closeAddGoalModal()" class="px-3 py-1.5 text-xs text-slate-400 hover:text-white">Cancel</button>
+                    <button type="submit" class="px-5 py-1.5 text-xs bg-white text-obsidian font-semibold rounded-full hover:bg-slate-200">Create Goal</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Custom Wipe Data Confirmation Modal -->
+    <div id="reset-modal" class="fixed inset-0 obsidian-backdrop hidden items-center justify-center p-4 z-50">
+        <div class="bento-card max-w-sm w-full p-5 space-y-4 shadow-2xl border-rose-500/30">
+            <div class="flex items-center space-x-3 text-rose-400">
+                <i data-lucide="alert-triangle" class="w-6 h-6"></i>
+                <h3 class="text-base font-semibold text-white">Reset Application Data?</h3>
+            </div>
+            <p class="text-xs text-slate-300 leading-relaxed">
+                This will reset your Cortex Second Brain to the starter blueprint. Your current tasks, income logs, habits, and ideas will be restored to default.
+            </p>
+            <div class="flex items-center justify-end space-x-2 pt-2">
+                <button onclick="closeResetModal()" class="px-4 py-1.5 text-xs text-slate-300 hover:text-white border border-white/10 rounded-full">
+                    Cancel
+                </button>
+                <button onclick="executeResetData()" class="px-4 py-1.5 text-xs bg-rose-500 hover:bg-rose-600 text-white font-semibold rounded-full shadow-lg transition-all">
+                    Confirm Wipe
+                </button>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- ========================================== -->
+    <!-- APPLICATION JAVASCRIPT STATE & ENGINE      -->
+    <!-- ========================================== -->
+    <script>
+        // Starter Blueprint Demo Data
+        const STARTER_DATA = {
+            activeContextFilter: 'all',
+            focusMode: false,
+            pinnedFocusId: '1',
+            currency: 'Rp',
+            incomeLog: [
+                { id: 'inc_1', amount: 150000, note: 'Freelance shift bonus', timestamp: Date.now() - 3600000 }
+            ],
+            pulseNote: 'Solid morning focus session. Finished algorithm problem set and roster review.',
+            items: [
+                { id: '1', title: 'Review Friday shift roster & sync work updates', bucket: 'task', context: 'work', dueTag: 'Today', completed: false, pinned: true, createdAt: Date.now() - 10000 },
+                { id: '2', title: 'Complete Optics & Electromagnetism problem set', bucket: 'homework', context: 'school', dueTag: 'Tonight', completed: false, pinned: false, createdAt: Date.now() - 20000 },
+                { id: '3', title: 'Deep clean dual-monitor workspace & cable arrangement', bucket: 'chore', context: 'personal', dueTag: 'Fri', completed: false, pinned: false, createdAt: Date.now() - 30000 },
+                { id: '4', title: 'Submit computer science project milestone draft', bucket: 'homework', context: 'school', dueTag: 'Next Week', completed: true, pinned: false, createdAt: Date.now() - 40000 },
+                { id: '5', title: 'Refill mineral water supply & kitchen espresso beans', bucket: 'chore', context: 'personal', dueTag: 'Today', completed: true, pinned: false, createdAt: Date.now() - 50000 }
+            ],
+            habits: [
+                { id: 'h1', title: '30-min Technical Reading', context: 'personal', streak: 7, history: [true, true, true, true, true, true, true], completedToday: true },
+                { id: 'h2', title: 'Physics & Algorithms flashcards', context: 'school', streak: 4, history: [false, true, true, true, true, false, true], completedToday: true },
+                { id: 'h3', title: 'Inbox Zero & EOD wrap-up', context: 'work', streak: 12, history: [true, true, true, true, true, true, false], completedToday: false }
+            ],
+            goals: [
+                {
+                    id: 'g1',
+                    title: 'Atmospheric Second Brain App OS',
+                    context: 'personal',
+                    targetDate: '2026-12-01',
+                    progress: 80,
+                    milestones: [
+                        { id: 'm1', title: 'Obsidian Rim-Lit Glass UI Design', completed: true },
+                        { id: 'm2', title: 'Focus Spotlight & Daily Pulse Engine', completed: true },
+                        { id: 'm3', title: 'Inline Text Editing & Income Log', completed: true }
+                    ]
+                },
+                {
+                    id: 'g2',
+                    title: 'CS Midterm Algorithm Paper',
+                    context: 'school',
+                    targetDate: '2026-12-15',
+                    progress: 45,
+                    milestones: [
+                        { id: 'sm1', title: 'Literature review & primary dataset source', completed: true },
+                        { id: 'sm2', title: 'Draft core hypothesis & pseudocode', completed: false },
+                        { id: 'sm3', title: 'Final 15-page document writeup', completed: false }
+                    ]
+                }
+            ],
+            ideas: [
+                { id: 'i1', title: 'Add voice-to-text quick capture widget for mobile screen', context: 'personal', createdAt: Date.now() - 60000 },
+                { id: 'i2', title: 'Automated weekly completion analytics summary generator', context: 'work', createdAt: Date.now() - 120000 }
+            ]
+        };
+
+        // App Global State
+        let state = loadState();
+        let editingItemId = null;
+
+        // Initialization
+        document.addEventListener('DOMContentLoaded', () => {
+            updateDateDisplay();
+            renderAll();
+
+            // Keyboard Shortcuts
+            document.addEventListener('keydown', (e) => {
+                // Focus command bar with '/' key
+                if (e.key === '/' && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'TEXTAREA') {
+                    e.preventDefault();
+                    document.getElementById('capture-input').focus();
+                }
+                // Exit Focus Mode with Escape
+                if (e.key === 'Escape' && state.focusMode) {
+                    toggleFocusMode();
+                }
+            });
+        });
+
+        // State Storage Helpers
+        function loadState() {
+            const saved = localStorage.getItem('second_brain_obsidian_v3');
+            if (saved) {
+                try {
+                    return JSON.parse(saved);
+                } catch(e) {
+                    console.error("State parse error", e);
+                }
+            }
+            return JSON.parse(JSON.stringify(STARTER_DATA));
+        }
+
+        function saveState() {
+            localStorage.setItem('second_brain_obsidian_v3', JSON.stringify(state));
+            renderAll();
+        }
+
+        function promptResetData() {
+            document.getElementById('reset-modal').classList.remove('hidden');
+            document.getElementById('reset-modal').classList.add('flex');
+        }
+
+        function closeResetModal() {
+            document.getElementById('reset-modal').classList.add('hidden');
+            document.getElementById('reset-modal').classList.remove('flex');
+        }
+
+        function executeResetData() {
+            state = JSON.parse(JSON.stringify(STARTER_DATA));
+            closeResetModal();
+            saveState();
+        }
+
+        // Context Filtering
+        function setContextFilter(context) {
+            state.activeContextFilter = context;
+            
+            const filterBtns = document.querySelectorAll('.filter-btn');
+            filterBtns.forEach(btn => {
+                btn.className = 'filter-btn text-xs px-3.5 py-1.5 rounded-full font-medium text-slate-400 hover:text-white transition-all duration-150 flex items-center space-x-1.5';
+            });
+
+            const activeBtn = document.getElementById(`filter-${context}`);
+            if (activeBtn) {
+                activeBtn.className = 'filter-btn text-xs px-3.5 py-1.5 rounded-full font-medium transition-all duration-150 flex items-center space-x-1.5 bg-white text-obsidian shadow-sm';
+            }
+
+            renderAll();
+        }
+
+        // Quick Capture Engine
+        function handleQuickCapture(e) {
+            e.preventDefault();
+            const input = document.getElementById('capture-input');
+            const title = input.value.trim();
+            if (!title) return;
+
+            const selectedBucket = document.querySelector('input[name="capture-bucket"]:checked').value;
+            const context = document.getElementById('capture-context').value;
+            const dueTag = document.getElementById('capture-due').value;
+
+            if (selectedBucket === 'idea') {
+                state.ideas.unshift({
+                    id: 'i_' + Date.now(),
+                    title: title,
+                    context: context,
+                    createdAt: Date.now()
+                });
+            } else {
+                state.items.unshift({
+                    id: Date.now().toString(),
+                    title: title,
+                    bucket: selectedBucket,
+                    context: context,
+                    dueTag: dueTag,
+                    completed: false,
+                    pinned: false,
+                    createdAt: Date.now()
+                });
+            }
+
+            input.value = '';
+            saveState();
+        }
+
+        // Item Logic (Complete, Delete, Pin, Due Cycle, Inline Edit)
+        function toggleItemComplete(id) {
+            const item = state.items.find(i => i.id === id);
+            if (item) {
+                item.completed = !item.completed;
+                saveState();
+            }
+        }
+
+        function deleteItem(id) {
+            state.items = state.items.filter(i => i.id !== id);
+            if (state.pinnedFocusId === id) state.pinnedFocusId = null;
+            saveState();
+        }
+
+        function clearCompletedItems() {
+            state.items = state.items.filter(i => !i.completed);
+            saveState();
+        }
+
+        function toggleItemPin(id) {
+            state.items.forEach(i => {
+                if (i.id === id) {
+                    i.pinned = !i.pinned;
+                    if (i.pinned) state.pinnedFocusId = id;
+                    else if (state.pinnedFocusId === id) state.pinnedFocusId = null;
+                } else {
+                    i.pinned = false;
+                }
+            });
+            saveState();
+        }
+
+        function cycleDueTag(id) {
+            const item = state.items.find(i => i.id === id);
+            if (item) {
+                const tags = ['None', 'Today', 'Tonight', 'Fri', 'Next Week'];
+                const currentIndex = tags.indexOf(item.dueTag || 'None');
+                const nextIndex = (currentIndex + 1) % tags.length;
+                item.dueTag = tags[nextIndex];
+                saveState();
+            }
+        }
+
+        // Inline Text Editing Engine
+        function startInlineEdit(id, currentText, type = 'item') {
+            editingItemId = id;
+            renderAll();
+            setTimeout(() => {
+                const inputEl = document.getElementById(`inline-edit-${id}`);
+                if (inputEl) {
+                    inputEl.focus();
+                    inputEl.select();
+                }
+            }, 50);
+        }
+
+        function saveInlineEdit(id, newText, type = 'item') {
+            if (!editingItemId) return;
+            newText = newText.trim();
+            if (newText) {
+                if (type === 'item') {
+                    const item = state.items.find(i => i.id === id);
+                    if (item) item.title = newText;
+                } else if (type === 'idea') {
+                    const idea = state.ideas.find(i => i.id === id);
+                    if (idea) idea.title = newText;
+                }
+            }
+            editingItemId = null;
+            saveState();
+        }
+
+        // Focus Mode Engine
+        function toggleFocusMode() {
+            state.focusMode = !state.focusMode;
+            document.body.classList.toggle('in-focus-mode', state.focusMode);
+
+            const btn = document.getElementById('focus-toggle-btn');
+            const btnText = document.getElementById('focus-btn-text');
+            const container = document.getElementById('focus-spotlight-container');
+
+            if (state.focusMode) {
+                btn.className = 'text-xs font-semibold px-3.5 py-2 rounded-full border border-amber-400/50 bg-amber-400 text-obsidian transition-all flex items-center space-x-1.5 shadow-lg shadow-amber-400/20';
+                btnText.textContent = 'Focus Active';
+                container.classList.remove('hidden');
+            } else {
+                btn.className = 'text-xs font-medium px-3.5 py-2 rounded-full border border-white/10 bg-white/5 hover:bg-white/15 text-slate-200 transition-all flex items-center space-x-1.5 shadow-sm';
+                btnText.textContent = 'Focus Mode';
+                container.classList.add('hidden');
+            }
+
+            renderFocusSpotlight();
+        }
+
+        function renderFocusSpotlight() {
+            if (!state.focusMode) return;
+
+            const container = document.getElementById('focus-target-content');
+            
+            // Priority: Pinned item -> First incomplete item -> Fallback message
+            let targetItem = state.items.find(i => i.id === state.pinnedFocusId && !i.completed);
+            if (!targetItem) {
+                targetItem = state.items.find(i => i.pinned && !i.completed);
+            }
+            if (!targetItem) {
+                targetItem = state.items.find(i => !i.completed);
+            }
+
+            if (!targetItem) {
+                container.innerHTML = `
+                    <div class="text-center py-6 space-y-2">
+                        <i data-lucide="check-circle-2" class="w-10 h-10 text-emerald-400 mx-auto"></i>
+                        <h3 class="text-base font-semibold text-white">All Clear! No Active Focus Tasks</h3>
+                        <p class="text-xs text-slate-400">Capture a new task or exit Focus Mode.</p>
+                    </div>
+                `;
+                lucide.createIcons();
+                return;
+            }
+
+            container.innerHTML = `
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-obsidian/90 p-4 rounded-xl border border-white/15">
+                    <div class="flex items-center space-x-4 min-w-0">
+                        <input 
+                            type="checkbox" 
+                            class="rim-checkbox w-6 h-6" 
+                            ${targetItem.completed ? 'checked' : ''} 
+                            onclick="toggleItemComplete('${targetItem.id}')"
+                        />
+                        <div class="min-w-0">
+                            <span class="ctx-pill ctx-${targetItem.context} mb-1">${targetItem.context} • ${targetItem.bucket}</span>
+                            <h3 class="text-base sm:text-lg font-medium text-white leading-snug">${escapeHtml(targetItem.title)}</h3>
+                        </div>
+                    </div>
+
+                    <div class="flex items-center space-x-3 flex-shrink-0 sm:justify-end">
+                        <span class="due-pill due-${targetItem.dueTag && targetItem.dueTag !== 'None' ? 'active' : 'none'} font-mono">
+                            Due: ${targetItem.dueTag || 'None'}
+                        </span>
+                        <button 
+                            onclick="toggleItemComplete('${targetItem.id}')" 
+                            class="bg-white hover:bg-slate-200 text-obsidian font-semibold px-4 py-2 rounded-full text-xs transition-all flex items-center space-x-1.5 shadow-md"
+                        >
+                            <i data-lucide="check" class="w-4 h-4 stroke-[3]"></i>
+                            <span>Done & Exit</span>
+                        </button>
+                    </div>
+                </div>
+            `;
+            lucide.createIcons();
+        }
+
+        // Daily Pulse & Income Log Engine
+        function toggleCurrency() {
+            state.currency = state.currency === 'Rp' ? '$' : 'Rp';
+            document.getElementById('currency-label').textContent = state.currency;
+            document.getElementById('currency-prefix').textContent = state.currency;
+            saveState();
+        }
+
+        function handleLogIncome(e) {
+            e.preventDefault();
+            const input = document.getElementById('income-amount-input');
+            const val = parseFloat(input.value);
+            if (isNaN(val) || val <= 0) return;
+
+            state.incomeLog.unshift({
+                id: 'inc_' + Date.now(),
+                amount: val,
+                timestamp: Date.now()
+            });
+
+            input.value = '';
+            saveState();
+        }
+
+        function undoLastIncome() {
+            if (state.incomeLog.length > 0) {
+                state.incomeLog.shift();
+                saveState();
+            }
+        }
+
+        function savePulseNote(val) {
+            state.pulseNote = val;
+            localStorage.setItem('second_brain_obsidian_v3', JSON.stringify(state));
+        }
+
+        // Habit Engine
+        function toggleHabitToday(id) {
+            const habit = state.habits.find(h => h.id === id);
+            if (habit) {
+                habit.completedToday = !habit.completedToday;
+                if (habit.completedToday) {
+                    habit.streak += 1;
+                    if (habit.history) habit.history[6] = true;
+                } else {
+                    habit.streak = Math.max(0, habit.streak - 1);
+                    if (habit.history) habit.history[6] = false;
+                }
+                saveState();
+            }
+        }
+
+        function openAddHabitModal() {
+            document.getElementById('habit-modal').classList.remove('hidden');
+            document.getElementById('habit-modal').classList.add('flex');
+        }
+
+        function closeAddHabitModal() {
+            document.getElementById('habit-modal').classList.add('hidden');
+            document.getElementById('habit-modal').classList.remove('flex');
+        }
+
+        function handleAddHabitSubmit(e) {
+            e.preventDefault();
+            const title = document.getElementById('habit-title-input').value.trim();
+            const context = document.getElementById('habit-context-input').value;
+            if (!title) return;
+
+            state.habits.push({
+                id: 'h_' + Date.now(),
+                title: title,
+                context: context,
+                streak: 0,
+                history: [false, false, false, false, false, false, false],
+                completedToday: false
+            });
+
+            document.getElementById('habit-title-input').value = '';
+            closeAddHabitModal();
+            saveState();
+        }
+
+        function deleteHabit(id) {
+            state.habits = state.habits.filter(h => h.id !== id);
+            saveState();
+        }
+
+        // Goals Engine
+        function updateGoalProgress(goalId, delta) {
+            const goal = state.goals.find(g => g.id === goalId);
+            if (goal) {
+                goal.progress = Math.min(100, Math.max(0, (goal.progress || 0) + delta));
+                saveState();
+            }
+        }
+
+        function toggleGoalMilestone(goalId, milestoneId) {
+            const goal = state.goals.find(g => g.id === goalId);
+            if (goal) {
+                const ms = goal.milestones.find(m => m.id === milestoneId);
+                if (ms) {
+                    ms.completed = !ms.completed;
+                    const doneCount = goal.milestones.filter(m => m.completed).length;
+                    goal.progress = Math.round((doneCount / goal.milestones.length) * 100);
+                    saveState();
+                }
+            }
+        }
+
+        function openAddGoalModal() {
+            document.getElementById('goal-modal').classList.remove('hidden');
+            document.getElementById('goal-modal').classList.add('flex');
+        }
+
+        function closeAddGoalModal() {
+            document.getElementById('goal-modal').classList.add('hidden');
+            document.getElementById('goal-modal').classList.remove('flex');
+        }
+
+        function handleAddGoalSubmit(e) {
+            e.preventDefault();
+            const title = document.getElementById('goal-title-input').value.trim();
+            const context = document.getElementById('goal-context-input').value;
+            const targetDate = document.getElementById('goal-target-input').value;
+            const rawSteps = document.getElementById('goal-steps-input').value.trim();
+
+            if (!title) return;
+
+            const stepsArray = rawSteps 
+                ? rawSteps.split(',').map((s, idx) => ({ id: 'ms_' + idx + '_' + Date.now(), title: s.trim(), completed: false })).filter(s => s.title)
+                : [{ id: 'ms_0_' + Date.now(), title: 'Initial Blueprint Draft', completed: false }];
+
+            state.goals.push({
+                id: 'g_' + Date.now(),
+                title: title,
+                context: context,
+                targetDate: targetDate || 'Flexible',
+                progress: 0,
+                milestones: stepsArray
+            });
+
+            document.getElementById('goal-title-input').value = '';
+            document.getElementById('goal-steps-input').value = '';
+            closeAddGoalModal();
+            saveState();
+        }
+
+        function deleteGoal(id) {
+            state.goals = state.goals.filter(g => g.id !== id);
+            saveState();
+        }
+
+        // Ideas Engine
+        function promoteIdeaToTask(ideaId) {
+            const idea = state.ideas.find(i => i.id === ideaId);
+            if (idea) {
+                state.items.unshift({
+                    id: Date.now().toString(),
+                    title: idea.title,
+                    bucket: 'task',
+                    context: idea.context || 'personal',
+                    dueTag: 'Today',
+                    completed: false,
+                    pinned: false,
+                    createdAt: Date.now()
+                });
+                state.ideas = state.ideas.filter(i => i.id !== ideaId);
+                saveState();
+            }
+        }
+
+        function deleteIdea(id) {
+            state.ideas = state.ideas.filter(i => i.id !== id);
+            saveState();
+        }
+
+
+        // ========================================== -->
+        // RENDER ENGINES                             -->
+        // ========================================== -->
+
+        function renderAll() {
+            renderTelemetry();
+            renderIncomeAndPulse();
+            renderDailyThree();
+            renderHabits();
+            renderGoals();
+            renderIdeas();
+            if (state.focusMode) renderFocusSpotlight();
+            lucide.createIcons();
+        }
+
+        function filterByContext(items) {
+            if (state.activeContextFilter === 'all') return items;
+            return items.filter(item => item.context === state.activeContextFilter);
+        }
+
+        function renderTelemetry() {
+            const filtered = filterByContext(state.items);
+            const total = filtered.length;
+            const completedCount = filtered.filter(i => i.completed).length;
+            const pct = total === 0 ? 0 : Math.round((completedCount / total) * 100);
+
+            // Update SVG Ring Gauge
+            const ring = document.getElementById('telemetry-ring');
+            const circumference = 125.6;
+            const offset = circumference - (pct / 100) * circumference;
+            ring.style.strokeDashoffset = offset;
+
+            document.getElementById('telemetry-pct').textContent = `${pct}%`;
+            document.getElementById('telemetry-ratio').textContent = `${completedCount}/${total} Done`;
+
+            // Max streak count helper
+            const maxStreak = state.habits.reduce((max, h) => Math.max(max, h.streak || 0), 0);
+            document.getElementById('telemetry-streak-count').textContent = `${maxStreak}d`;
+            document.getElementById('telemetry-ideas-count').textContent = state.ideas.length;
+        }
+
+        function renderIncomeAndPulse() {
+            const totalIncome = state.incomeLog.reduce((sum, item) => sum + (item.amount || 0), 0);
+            const formatted = state.currency === 'Rp' 
+                ? 'Rp ' + totalIncome.toLocaleString('id-ID')
+                : '$ ' + totalIncome.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            
+            document.getElementById('income-total-display').textContent = formatted;
+            document.getElementById('currency-label').textContent = state.currency;
+            document.getElementById('currency-prefix').textContent = state.currency;
+
+            const undoBtn = document.getElementById('income-undo-btn');
+            if (state.incomeLog.length > 0) {
+                undoBtn.classList.remove('hidden');
+            } else {
+                undoBtn.classList.add('hidden');
+            }
+
+            const pulseInput = document.getElementById('daily-pulse-input');
+            if (document.activeElement !== pulseInput) {
+                pulseInput.value = state.pulseNote || '';
+            }
+        }
+
+        function renderDailyThree() {
+            const filtered = filterByContext(state.items);
+
+            const tasks = filtered.filter(i => i.bucket === 'task');
+            const homeworks = filtered.filter(i => i.bucket === 'homework');
+            const chores = filtered.filter(i => i.bucket === 'chore');
+
+            document.getElementById('tasks-count-badge').textContent = tasks.length;
+            document.getElementById('homeworks-count-badge').textContent = homeworks.length;
+            document.getElementById('chores-count-badge').textContent = chores.length;
+
+            renderBucketList('tasks-list', tasks, 'No active tasks in view');
+            renderBucketList('homeworks-list', homeworks, 'No homework assignments');
+            renderBucketList('chores-list', chores, 'No active chores');
+        }
+
+        function renderBucketList(elementId, items, emptyMessage) {
+            const container = document.getElementById(elementId);
+            if (items.length === 0) {
+                container.innerHTML = `
+                    <div class="px-4 py-6 text-center text-slate-400 text-xs italic">
+                        ${emptyMessage}
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = items.map(item => {
+                const isEditing = editingItemId === item.id;
+                return `
+                    <div class="item-row px-4 py-3 flex items-center justify-between group hover:bg-white/[0.03] ${item.completed ? 'item-completed' : ''}">
+                        
+                        <!-- Left Checkbox & Text -->
+                        <div class="flex items-center space-x-3.5 min-w-0 pr-2 flex-grow">
+                            <input 
+                                type="checkbox" 
+                                class="rim-checkbox" 
+                                ${item.completed ? 'checked' : ''} 
+                                onclick="toggleItemComplete('${item.id}')"
+                            />
+                            
+                            ${isEditing ? `
+                                <input 
+                                    type="text" 
+                                    id="inline-edit-${item.id}"
+                                    value="${escapeHtml(item.title)}"
+                                    onblur="saveInlineEdit('${item.id}', this.value, 'item')"
+                                    onkeydown="if(event.key === 'Enter') saveInlineEdit('${item.id}', this.value, 'item')"
+                                    class="w-full bg-obsidian border border-white/20 rounded px-2 py-0.5 text-xs text-white focus:outline-none"
+                                />
+                            ` : `
+                                <span 
+                                    onclick="startInlineEdit('${item.id}', '${escapeHtml(item.title)}', 'item')" 
+                                    class="item-title text-xs sm:text-sm text-slate-200 truncate font-normal cursor-pointer hover:text-white transition-colors"
+                                    title="Click to edit inline"
+                                >
+                                    ${escapeHtml(item.title)}
+                                </span>
+                            `}
+                        </div>
+
+                        <!-- Right Actions & Badges -->
+                        <div class="flex items-center space-x-2 flex-shrink-0">
+                            <!-- Due Tag Pill -->
+                            <span 
+                                onclick="cycleDueTag('${item.id}')"
+                                class="due-pill due-${item.dueTag && item.dueTag !== 'None' ? 'active' : 'none'}"
+                                title="Click to cycle due date"
+                            >
+                                ${item.dueTag || 'None'}
+                            </span>
+
+                            <!-- Context Pill -->
+                            <span class="ctx-pill ctx-${item.context}">
+                                <span class="w-1 h-1 rounded-full ${item.context === 'personal' ? 'bg-emerald-400' : item.context === 'school' ? 'bg-sky-400' : 'bg-amber-400'}"></span>
+                                <span class="hidden sm:inline">${item.context}</span>
+                            </span>
+
+                            <!-- Pin to Focus Button -->
+                            <button 
+                                onclick="toggleItemPin('${item.id}')" 
+                                class="p-1 transition-colors ${item.pinned ? 'text-amber-400' : 'text-slate-400 hover:text-white opacity-0 group-hover:opacity-100'}"
+                                title="${item.pinned ? 'Pinned to Focus Spotlight' : 'Pin to Focus'}"
+                            >
+                                <i data-lucide="pin" class="w-3.5 h-3.5"></i>
+                            </button>
+
+                            <!-- Delete Button -->
+                            <button 
+                                onclick="deleteItem('${item.id}')" 
+                                class="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-rose-400 p-1 transition-opacity"
+                                title="Delete Item"
+                            >
+                                <i data-lucide="x" class="w-3.5 h-3.5"></i>
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function renderHabits() {
+            const habits = filterByContext(state.habits);
+            const container = document.getElementById('habits-list');
+
+            if (habits.length === 0) {
+                container.innerHTML = `<div class="text-xs text-slate-400 text-center py-3 italic">No habits registered in view</div>`;
+                return;
+            }
+
+            container.innerHTML = habits.map(h => {
+                const historyBars = h.history || [false, false, false, false, false, false, h.completedToday];
+                return `
+                    <div class="bg-obsidian/70 border border-white/10 rounded-xl p-3 space-y-2 group hover:border-white/20 transition-all">
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center space-x-2.5 min-w-0 pr-2">
+                                <button 
+                                    onclick="toggleHabitToday('${h.id}')" 
+                                    class="w-6 h-6 rounded-md flex items-center justify-center transition-all ${h.completedToday ? 'bg-amber-400 text-obsidian shadow-[0_0_10px_rgba(251,191,36,0.4)]' : 'bg-white/5 text-slate-400 border border-white/10 hover:border-white/30'}"
+                                    title="${h.completedToday ? 'Completed today!' : 'Mark completed today'}"
+                                >
+                                    <i data-lucide="check" class="w-3.5 h-3.5 stroke-[3]"></i>
+                                </button>
+                                <div class="min-w-0">
+                                    <h4 class="text-xs text-slate-200 font-medium truncate ${h.completedToday ? 'line-through text-slate-400' : ''}">${escapeHtml(h.title)}</h4>
+                                    <span class="ctx-pill ctx-${h.context} mt-0.5">${h.context}</span>
+                                </div>
+                            </div>
+
+                            <div class="flex items-center space-x-2">
+                                <span class="font-mono-num text-xs font-semibold text-amber-400 flex items-center space-x-1 bg-amber-400/10 px-2 py-0.5 rounded-md border border-amber-400/20">
+                                    <i data-lucide="flame" class="w-3 h-3"></i>
+                                    <span>${h.streak}d</span>
+                                </span>
+                                <button onclick="deleteHabit('${h.id}')" class="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-rose-400 p-0.5 transition-opacity">
+                                    <i data-lucide="x" class="w-3 h-3"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- 7-Day Mini Equalizer Visualization -->
+                        <div class="flex items-center justify-between pt-1 px-1 border-t border-white/5">
+                            <span class="text-[9px] font-mono text-slate-400 uppercase">7-Day Streak</span>
+                            <div class="flex items-end space-x-1 h-3.5">
+                                ${historyBars.map(dayDone => `
+                                    <span class="w-1.5 rounded-full transition-all ${dayDone ? 'h-3.5 bg-amber-400 shadow-[0_0_6px_rgba(251,191,36,0.6)]' : 'h-1.5 bg-white/10'}"></span>
+                                `).join('')}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function renderGoals() {
+            const goals = filterByContext(state.goals);
+            const container = document.getElementById('goals-list');
+
+            if (goals.length === 0) {
+                container.innerHTML = `<div class="text-xs text-slate-400 text-center py-3 italic">No active goals in view</div>`;
+                return;
+            }
+
+            container.innerHTML = goals.map(g => {
+                const pct = g.progress || 0;
+                return `
+                    <div class="bg-obsidian/70 border border-white/10 rounded-xl p-3.5 space-y-3 group hover:border-white/20 transition-all">
+                        <div class="flex items-start justify-between gap-2">
+                            <div>
+                                <div class="flex items-center space-x-2">
+                                    <h4 class="text-xs font-semibold text-white tracking-wide">${escapeHtml(g.title)}</h4>
+                                    <span class="ctx-pill ctx-${g.context}">${g.context}</span>
+                                </div>
+                                <span class="text-[10px] font-mono text-slate-400 block mt-0.5">Target: ${g.targetDate || 'Flexible'}</span>
+                            </div>
+                            
+                            <div class="flex items-center space-x-1.5">
+                                <button onclick="updateGoalProgress('${g.id}', -10)" class="text-slate-400 hover:text-white bg-white/5 hover:bg-white/10 px-1.5 py-0.5 rounded text-[10px] font-mono">-10%</button>
+                                <span class="font-mono-num text-xs text-white font-semibold w-9 text-center">${pct}%</span>
+                                <button onclick="updateGoalProgress('${g.id}', 10)" class="text-slate-400 hover:text-white bg-white/5 hover:bg-white/10 px-1.5 py-0.5 rounded text-[10px] font-mono">+10%</button>
+                                <button onclick="deleteGoal('${g.id}')" class="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-rose-400 p-1 transition-opacity">
+                                    <i data-lucide="x" class="w-3 h-3"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Progress Bar -->
+                        <div class="w-full bg-white/10 h-1.5 rounded-full overflow-hidden">
+                            <div class="bg-gradient-to-r from-slate-300 to-white h-full transition-all duration-300 shadow-[0_0_8px_rgba(255,255,255,0.4)]" style="width: ${pct}%"></div>
+                        </div>
+
+                        <!-- Sub Milestones -->
+                        <div class="space-y-1.5 pt-1">
+                            ${(g.milestones || []).map(m => `
+                                <div class="flex items-center justify-between text-xs text-slate-300 hover:text-white cursor-pointer" onclick="toggleGoalMilestone('${g.id}', '${m.id}')">
+                                    <div class="flex items-center space-x-2 min-w-0">
+                                        <i data-lucide="${m.completed ? 'check-circle-2' : 'circle'}" class="w-3.5 h-3.5 ${m.completed ? 'text-white' : 'text-slate-600'} flex-shrink-0 transition-colors"></i>
+                                        <span class="truncate ${m.completed ? 'line-through text-slate-400' : ''}">${escapeHtml(m.title)}</span>
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function renderIdeas() {
+            const ideas = filterByContext(state.ideas);
+            const container = document.getElementById('ideas-list');
+
+            if (ideas.length === 0) {
+                container.innerHTML = `<div class="text-xs text-slate-400 text-center py-3 italic">Scratchpad empty</div>`;
+                return;
+            }
+
+            container.innerHTML = ideas.map(i => {
+                const isEditing = editingItemId === i.id;
+                return `
+                    <div class="bg-obsidian/70 border border-white/10 rounded-xl p-3 space-y-2.5 group hover:border-white/20 transition-all">
+                        ${isEditing ? `
+                            <input 
+                                type="text" 
+                                id="inline-edit-${i.id}"
+                                value="${escapeHtml(i.title)}"
+                                onblur="saveInlineEdit('${i.id}', this.value, 'idea')"
+                                onkeydown="if(event.key === 'Enter') saveInlineEdit('${i.id}', this.value, 'idea')"
+                                class="w-full bg-obsidian border border-white/20 rounded px-2 py-1 text-xs text-white focus:outline-none"
+                            />
+                        ` : `
+                            <p 
+                                onclick="startInlineEdit('${i.id}', '${escapeHtml(i.title)}', 'idea')" 
+                                class="text-xs text-slate-200 leading-snug font-normal cursor-pointer hover:text-white transition-colors"
+                                title="Click to edit note inline"
+                            >
+                                ${escapeHtml(i.title)}
+                            </p>
+                        `}
+
+                        <div class="flex items-center justify-between pt-1.5 border-t border-white/5">
+                            <span class="ctx-pill ctx-${i.context}">${i.context}</span>
+                            <div class="flex items-center space-x-2">
+                                <button 
+                                    onclick="promoteIdeaToTask('${i.id}')"
+                                    class="text-[10px] font-mono text-white hover:text-white bg-white/10 hover:bg-white/20 border border-white/15 px-2.5 py-1 rounded-full transition-all flex items-center space-x-1"
+                                    title="Promote note to Daily Task"
+                                >
+                                    <i data-lucide="arrow-up-right" class="w-3 h-3"></i>
+                                    <span>Promote Task</span>
+                                </button>
+                                <button onclick="deleteIdea('${i.id}')" class="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-rose-400 p-0.5 transition-opacity">
+                                    <i data-lucide="x" class="w-3 h-3"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // Live Date Helper
+        function updateDateDisplay() {
+            const options = { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' };
+            const today = new Date().toLocaleDateString('en-US', options);
+            document.getElementById('current-date-display').textContent = today.toUpperCase();
+        }
+
+        function escapeHtml(str) {
+            return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+        }
+    </script>
+</body>
+</html>
